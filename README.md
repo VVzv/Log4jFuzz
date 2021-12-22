@@ -4,6 +4,10 @@ log4j vuln fuzz/scan
 ## USE
 ```
 // it's use localhost udp server to check target vuln.
+'''
+该脚本会自动在本地开启一个12345至20100端口数的udp服务，并进行监听，如果该端口在内网中存在利用，可修改程序中如下代码的两个取值区间：
+>>> self.port = random.randint(12345, 20100) 
+'''
 python3 log4jFuzz.py [option]
 optional arguments:
   -u URL, --url URL     Target URL. (e.g. http://example.com )
